@@ -6,7 +6,11 @@ import LoginPage from './LoginPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import AvatarSelectionPage from './AvatarSelectionPage';
 import UserDashboard from './UserDashboard';
+import AdminDashboard from './AdminDashboard';
+import AdminLogin from './AdminLogin';
 import './App.css';
+import { getAuth } from 'firebase/auth';
+import { useAuthUser } from './useAuthUser';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -18,6 +22,9 @@ const firebaseConfig = {
 };
 
 function App() {
+  const user = useAuthUser();
+  const ADMIN_EMAIL = 'admin@rideadvisor.com';
+
   return (
     <Router>
       <Routes>
@@ -27,6 +34,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/choose-avatar" element={<AvatarSelectionPage />} />
         <Route path="/dashboard" element={<UserDashboard />} />
+        <Route path="/admin" element={user && user.email === ADMIN_EMAIL ? <AdminDashboard /> : <AdminLogin />} />
       </Routes>
     </Router>
   );
