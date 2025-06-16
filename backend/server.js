@@ -301,6 +301,100 @@ app.put('/admin/users/:id', async (req, res) => {
   }
 });
 
+// Get user profile
+app.get('/user/profile/:id', async (req, res) => {
+  const userId = req.params.id;
+  try {
+    // Get Auth user
+    const userRecord = await admin.auth().getUser(userId);
+    // Get Firestore user data
+    const userDoc = await admin.firestore().collection('users').doc(userId).get();
+    const userData = userDoc.exists ? userDoc.data() : {};
+    res.json({ success: true, user: { ...userData, ...userRecord } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update user profile
+app.put('/user/profile/:id', async (req, res) => {
+  const userId = req.params.id;
+  const { displayName, email, phoneNumber } = req.body;
+  try {
+    // Update Auth user
+    const updateData = {};
+    if (displayName !== undefined) updateData.displayName = displayName;
+    if (email !== undefined) updateData.email = email;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (Object.keys(updateData).length > 0) {
+      await admin.auth().updateUser(userId, updateData);
+    }
+    // Update Firestore user data
+    await admin.firestore().collection('users').doc(userId).set({
+      name: displayName,
+      email,
+      phoneNumber
+    }, { merge: true });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get feedback history for a user
+app.get('/user/feedback/:id', async (req, res) => {
+  const userId = req.params.id;
+  try {
+    const feedbackSnap = await admin.firestore().collection('feedback').where('userId', '==', userId).orderBy('timestamp', 'desc').get();
+    const feedback = feedbackSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, feedback });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all cars
+app.get('/cars', (req, res) => {
+  res.json({ success: true, cars });
+});
+
+// Get user's watchlist
+app.get('/user/watchlist/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const snap = await admin.firestore().collection('users').doc(userId).collection('watchlist').get();
+    const watchlist = snap.docs.map(doc => doc.data());
+    res.json({ success: true, watchlist });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Add car to watchlist
+app.post('/user/watchlist/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { carId } = req.body;
+  try {
+    const car = cars.find(c => c.id === carId);
+    if (!car) return res.status(404).json({ success: false, error: 'Car not found' });
+    await admin.firestore().collection('users').doc(userId).collection('watchlist').doc(String(carId)).set(car);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Remove car from watchlist
+app.delete('/user/watchlist/:userId/:carId', async (req, res) => {
+  const { userId, carId } = req.params;
+  try {
+    await admin.firestore().collection('users').doc(userId).collection('watchlist').doc(carId).delete();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
