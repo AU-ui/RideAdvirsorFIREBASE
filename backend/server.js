@@ -177,6 +177,13 @@ function recommendCars(avatar) {
   }
 }
 
+function cosineSimilarity(a, b) {
+  const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
+  const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
+  const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
+  return normA && normB ? dot / (normA * normB) : 0;
+}
+
 // Endpoint for car recommendations (hybrid: content-based + collaborative)
 app.post('/recommend-cars', async (req, res) => {
   const { avatar, userId } = req.body;
@@ -191,6 +198,7 @@ app.post('/recommend-cars', async (req, res) => {
     luxury: [0, 1, 0],
     budget: [0, 0, 1]
   };
+  const avatarVec = avatarProfile[avatar];
 
   // Collaborative: get feedback from Firestore
   let feedbackMap = {}; // carId -> score
@@ -205,8 +213,9 @@ app.post('/recommend-cars', async (req, res) => {
 
   // Score cars
   const hybridScores = cars.map(car => {
-    // Content-based score (dot product)
-    const contentScore = avatarProfile[avatar].reduce((sum, v, i) => sum + v * carFeatureMap[car.type][i], 0);
+    // Content-based score (cosine similarity)
+    const carVec = carFeatureMap[car.type];
+    const contentScore = cosineSimilarity(avatarVec, carVec);
     // Collaborative score (normalized)
     const collabScore = feedbackMap[car.id] ? feedbackMap[car.id] / 5 : 0; // scale for demo
     // Hybrid score: weighted sum
