@@ -404,6 +404,306 @@ app.delete('/user/watchlist/:userId/:carId', async (req, res) => {
   }
 });
 
+// DreamFund endpoints
+
+// Get DreamFund data for a user
+app.get('/dreamfund/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Get user's DreamFund data from Firestore
+    const dreamFundDoc = await admin.firestore().collection('dreamfund').doc(userId).get();
+    
+    if (!dreamFundDoc.exists) {
+      // Initialize DreamFund data for new users
+      const initialData = {
+        currentPoints: 0,
+        totalPointsEarned: 0,
+        nextRewardPoints: 1000,
+        currentTier: 'Bronze',
+        rewardsEarned: [
+          {
+            id: 'car_wash',
+            name: 'Free Car Wash',
+            pointsCost: 500,
+            description: 'Complimentary car wash service',
+            isAvailable: true
+          },
+          {
+            id: 'oil_change',
+            name: 'Oil Change Discount',
+            pointsCost: 800,
+            description: '50% off next oil change',
+            isAvailable: true
+          },
+          {
+            id: 'maintenance',
+            name: 'Free Maintenance Check',
+            pointsCost: 1200,
+            description: 'Complimentary maintenance inspection',
+            isAvailable: true
+          }
+        ],
+        recentTransactions: []
+      };
+      
+      await admin.firestore().collection('dreamfund').doc(userId).set(initialData);
+      
+      return res.json({
+        success: true,
+        dreamFundData: initialData
+      });
+    }
+    
+    const dreamFundData = dreamFundDoc.data();
+    
+    // Calculate tier based on total points earned
+    let currentTier = 'Bronze';
+    if (dreamFundData.totalPointsEarned >= 5000) {
+      currentTier = 'Gold';
+    } else if (dreamFundData.totalPointsEarned >= 2000) {
+      currentTier = 'Silver';
+    }
+    
+    // Update tier if changed
+    if (dreamFundData.currentTier !== currentTier) {
+      await admin.firestore().collection('dreamfund').doc(userId).update({
+        currentTier: currentTier
+      });
+      dreamFundData.currentTier = currentTier;
+    }
+    
+    res.json({
+      success: true,
+      dreamFundData: dreamFundData
+    });
+    
+  } catch (error) {
+    console.error('Error fetching DreamFund data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch DreamFund data'
+    });
+  }
+});
+
+// Add points to user's DreamFund
+app.post('/dreamfund/add-points', async (req, res) => {
+  try {
+    const { userId, points, description } = req.body;
+    
+    if (!userId || !points || !description) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID, points, and description are required'
+      });
+    }
+    
+    const dreamFundRef = admin.firestore().collection('dreamfund').doc(userId);
+    
+    // Use transaction to ensure data consistency
+    await admin.firestore().runTransaction(async (transaction) => {
+      const dreamFundDoc = await transaction.get(dreamFundRef);
+      
+      if (!dreamFundDoc.exists) {
+        throw new Error('DreamFund account not found');
+      }
+      
+      const currentData = dreamFundDoc.data();
+      const newCurrentPoints = currentData.currentPoints + points;
+      const newTotalPoints = currentData.totalPointsEarned + points;
+      
+      // Create transaction record
+      const transactionRecord = {
+        id: Date.now().toString(),
+        type: 'earned',
+        points: points,
+        description: description,
+        date: new Date().toISOString().split('T')[0]
+      };
+      
+      // Update DreamFund data
+      transaction.update(dreamFundRef, {
+        currentPoints: newCurrentPoints,
+        totalPointsEarned: newTotalPoints,
+        recentTransactions: admin.firestore.FieldValue.arrayUnion(transactionRecord)
+      });
+    });
+    
+    res.json({
+      success: true,
+      message: 'Points added successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error adding points:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add points'
+    });
+  }
+});
+
+// Redeem reward
+app.post('/dreamfund/redeem', async (req, res) => {
+  try {
+    const { userId, rewardId, pointsCost } = req.body;
+    
+    if (!userId || !rewardId || !pointsCost) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID, reward ID, and points cost are required'
+      });
+    }
+    
+    const dreamFundRef = admin.firestore().collection('dreamfund').doc(userId);
+    
+    // Use transaction to ensure data consistency
+    await admin.firestore().runTransaction(async (transaction) => {
+      const dreamFundDoc = await transaction.get(dreamFundRef);
+      
+      if (!dreamFundDoc.exists) {
+        throw new Error('DreamFund account not found');
+      }
+      
+      const currentData = dreamFundDoc.data();
+      
+      if (currentData.currentPoints < pointsCost) {
+        throw new Error('Insufficient points');
+      }
+      
+      // Find the reward
+      const reward = currentData.rewardsEarned.find(r => r.id === rewardId);
+      if (!reward) {
+        throw new Error('Reward not found');
+      }
+      
+      const newCurrentPoints = currentData.currentPoints - pointsCost;
+      
+      // Create transaction record
+      const transactionRecord = {
+        id: Date.now().toString(),
+        type: 'spent',
+        points: -pointsCost,
+        description: `Redeemed: ${reward.name}`,
+        date: new Date().toISOString().split('T')[0]
+      };
+      
+      // Update reward with earned date
+      const updatedRewards = currentData.rewardsEarned.map(r => 
+        r.id === rewardId 
+          ? { ...r, earnedDate: new Date().toISOString().split('T')[0] }
+          : r
+      );
+      
+      // Update DreamFund data
+      transaction.update(dreamFundRef, {
+        currentPoints: newCurrentPoints,
+        rewardsEarned: updatedRewards,
+        recentTransactions: admin.firestore.FieldValue.arrayUnion(transactionRecord)
+      });
+    });
+    
+    res.json({
+      success: true,
+      message: 'Reward redeemed successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error redeeming reward:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to redeem reward'
+    });
+  }
+});
+
+// New Endpoints Start Here
+
+// Get deals from user's watchlist
+app.get('/deals/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const watchlistDoc = await admin.firestore().collection('watchlists').doc(userId).get();
+
+    if (!watchlistDoc.exists) {
+      return res.json({ success: true, deals: [] });
+    }
+
+    const watchlistData = watchlistDoc.data();
+    const carIds = watchlistData.cars || [];
+
+    if (carIds.length === 0) {
+      return res.json({ success: true, deals: [] });
+    }
+
+    // In a real app, you'd query your car database. Here we use the dummy 'cars' array.
+    const allCars = cars; // using the existing dummy car data
+    const watchlistCars = allCars.filter(car => carIds.includes(car.id));
+
+    // Simulate finding deals (e.g., car price dropped)
+    const deals = watchlistCars.map(car => {
+      const hasDeal = Math.random() > 0.5; // 50% chance of having a deal
+      if (hasDeal) {
+        const priceDrop = Math.floor(Math.random() * 2000) + 500;
+        return {
+          ...car,
+          hasDeal: true,
+          originalPrice: car.price + priceDrop,
+          dealDescription: `Price dropped by $${priceDrop}!`
+        };
+      }
+      return { ...car, hasDeal: false };
+    }).filter(car => car.hasDeal);
+
+    res.json({ success: true, deals });
+  } catch (error) {
+    console.error('Error fetching deals:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch deals' });
+  }
+});
+
+// Update user preferences
+app.put('/user/preferences/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { dealAlertsEnabled, newsletterSubscribed } = req.body;
+
+    await admin.firestore().collection('users').doc(userId).set({
+      preferences: {
+        dealAlertsEnabled,
+        newsletterSubscribed
+      }
+    }, { merge: true });
+
+    res.json({ success: true, message: 'Preferences updated successfully' });
+  } catch (error) {
+    console.error('Error updating preferences:', error);
+    res.status(500).json({ success: false, error: 'Failed to update preferences' });
+  }
+});
+
+// Endpoint for changing password (placeholder)
+// Note: Actual password changes are best handled on the client with Firebase SDK's `updatePassword` method.
+// This endpoint is for demonstrating the flow.
+app.post('/user/change-password', async (req, res) => {
+    const { userId, newPassword } = req.body;
+    if (!userId || !newPassword) {
+        return res.status(400).json({ success: false, error: 'User ID and new password are required.' });
+    }
+    try {
+        // In a real scenario, you'd re-authenticate the user before this.
+        // The Firebase Admin SDK allows setting a new password.
+        await admin.auth().updateUser(userId, {
+            password: newPassword
+        });
+        res.status(200).json({ success: true, message: 'Password updated successfully. Please log in again.' });
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ success: false, error: 'An error occurred while changing the password.' });
+    }
+});
+
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
