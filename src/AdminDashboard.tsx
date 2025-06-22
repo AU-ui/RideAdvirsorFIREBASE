@@ -2,29 +2,35 @@ import React, { useEffect, useState } from 'react';
 import { getAuth, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
-type User = {
-  uid: string;
+interface User {
+  id: string;
   email: string;
   displayName: string;
-  disabled: boolean;
-};
+  isBlocked: boolean;
+}
 
 const ADMIN_EMAIL = 'admin@rideadvisor.com';
 
 const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const navigate = useNavigate();
 
   const fetchUsers = async () => {
-    setLoading(true);
-    const res = await fetch('http://localhost:8000/admin/users');
-    const data = await res.json();
-    if (data.success) setUsers(data.users);
-    setLoading(false);
+    try {
+      const response = await fetch('http://localhost:8000/admin/users');
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const data = await response.json();
+      setUsers(data.users);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -32,40 +38,64 @@ const AdminDashboard: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
-    const auth = getAuth();
-    await signOut(auth);
-    navigate('/login');
+    try {
+      await signOut(getAuth());
+      navigate('/login');
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
-  const handleBlock = async (uid: string, block: boolean) => {
-    await fetch('http://localhost:8000/admin/user/block', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, block }),
-    });
-    fetchUsers();
+  const handleDelete = async (userId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/admin/users/${userId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete user');
+      setUsers(users.filter(user => user.id !== userId));
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
-  const handleDelete = async (uid: string) => {
-    await fetch(`http://localhost:8000/admin/user/${uid}`, { method: 'DELETE' });
-    fetchUsers();
+  const handleBlock = async (userId: string, isBlocked: boolean) => {
+    try {
+      const response = await fetch(`http://localhost:8000/admin/users/${userId}/block`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isBlocked }),
+      });
+      if (!response.ok) throw new Error('Failed to update user block status');
+      setUsers(users.map(user => user.id === userId ? { ...user, isBlocked } : user));
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   const handleEdit = (user: User) => {
-    setEditUserId(user.uid);
-    setEditName(user.displayName || '');
+    setEditingUser(user);
+    setEditName(user.displayName);
     setEditEmail(user.email);
   };
 
-  const handleEditSave = async (uid: string) => {
-    await fetch('http://localhost:8000/admin/user/edit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, displayName: editName, email: editEmail }),
-    });
-    setEditUserId(null);
-    fetchUsers();
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    try {
+      const response = await fetch(`http://localhost:8000/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName: editName, email: editEmail }),
+      });
+      if (!response.ok) throw new Error('Failed to update user');
+      setUsers(users.map(user => user.id === editingUser.id ? { ...user, displayName: editName, email: editEmail } : user));
+      setEditingUser(null);
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <div style={{ padding: 40, background: 'linear-gradient(135deg, #232526 0%, #414345 100%)', minHeight: '100vh', color: '#fff' }}>
@@ -75,94 +105,82 @@ const AdminDashboard: React.FC = () => {
           Logout
         </button>
       </div>
-      {loading ? (
-        <p>Loading users...</p>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', background: '#23272f', borderRadius: 16, marginTop: 24, boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}>
-            <thead>
-              <tr style={{ background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)' }}>
-                <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Name</th>
-                <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Email</th>
-                <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Status</th>
-                <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Actions</th>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', background: '#23272f', borderRadius: 16, marginTop: 24, boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}>
+          <thead>
+            <tr style={{ background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)' }}>
+              <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Name</th>
+              <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Email</th>
+              <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Status</th>
+              <th style={{ color: '#fff', padding: 14, fontWeight: 600 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id} style={{ borderBottom: '1px solid #333' }}>
+                <td style={{ padding: 12 }}>
+                  {editingUser?.id === user.id ? (
+                    <input
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      style={{ background: '#333', color: '#fff', border: 'none', borderRadius: 4, padding: 4, width: 120 }}
+                    />
+                  ) : (
+                    user.displayName
+                  )}
+                </td>
+                <td style={{ padding: 12 }}>
+                  {editingUser?.id === user.id ? (
+                    <input
+                      value={editEmail}
+                      onChange={e => setEditEmail(e.target.value)}
+                      style={{ background: '#333', color: '#fff', border: 'none', borderRadius: 4, padding: 4, width: 180 }}
+                    />
+                  ) : (
+                    user.email
+                  )}
+                </td>
+                <td style={{ padding: 12, color: user.isBlocked ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
+                  {user.isBlocked ? 'Blocked' : 'Active'}
+                </td>
+                <td style={{ padding: 12 }}>
+                  {user.email === ADMIN_EMAIL ? (
+                    <span style={{ color: '#a5b4fc', fontWeight: 600 }}>Admin</span>
+                  ) : editingUser?.id === user.id ? (
+                    <button
+                      onClick={handleSaveEdit}
+                      style={{ background: '#22c55e', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, marginRight: 8, cursor: 'pointer' }}
+                    >
+                      Save
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleEdit(user)}
+                        style={{ background: '#f59e42', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, marginRight: 8, cursor: 'pointer' }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleBlock(user.id, !user.isBlocked)}
+                        style={{ background: user.isBlocked ? '#22c55e' : '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, marginRight: 8, cursor: 'pointer' }}
+                      >
+                        {user.isBlocked ? 'Unblock' : 'Block'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user.id)}
+                        style={{ background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user.uid} style={{ borderBottom: '1px solid #333' }}>
-                  <td style={{ padding: 12 }}>
-                    {editUserId === user.uid ? (
-                      <input
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        style={{ background: '#333', color: '#fff', border: 'none', borderRadius: 4, padding: 4, width: 120 }}
-                      />
-                    ) : (
-                      user.displayName
-                    )}
-                  </td>
-                  <td style={{ padding: 12 }}>
-                    {editUserId === user.uid ? (
-                      <input
-                        value={editEmail}
-                        onChange={e => setEditEmail(e.target.value)}
-                        style={{ background: '#333', color: '#fff', border: 'none', borderRadius: 4, padding: 4, width: 180 }}
-                      />
-                    ) : (
-                      user.email
-                    )}
-                  </td>
-                  <td style={{ padding: 12, color: user.disabled ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
-                    {user.disabled ? 'Blocked' : 'Active'}
-                  </td>
-                  <td style={{ padding: 12 }}>
-                    {user.email === ADMIN_EMAIL ? (
-                      <span style={{ color: '#a5b4fc', fontWeight: 600 }}>Admin</span>
-                    ) : editUserId === user.uid ? (
-                      <>
-                        <button
-                          onClick={() => handleEditSave(user.uid)}
-                          style={{ background: '#22c55e', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, marginRight: 8, cursor: 'pointer' }}
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditUserId(null)}
-                          style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleEdit(user)}
-                          style={{ background: '#f59e42', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, marginRight: 8, cursor: 'pointer' }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleBlock(user.uid, !user.disabled)}
-                          style={{ background: user.disabled ? '#22c55e' : '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, marginRight: 8, cursor: 'pointer' }}
-                        >
-                          {user.disabled ? 'Unblock' : 'Block'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.uid)}
-                          style={{ background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

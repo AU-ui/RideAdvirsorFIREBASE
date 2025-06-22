@@ -8,6 +8,10 @@ import AvatarSelectionPage from './AvatarSelectionPage';
 import UserDashboard from './UserDashboard';
 import AdminDashboard from './AdminDashboard';
 import AdminLogin from './AdminLogin';
+import WatchlistPage from './WatchlistPage';
+import DreamFundDashboard from './components/DreamFundDashboard';
+import DealAlertsPage from './DealAlertsPage';
+import AccountSettingsPage from './AccountSettingsPage';
 import './App.css';
 import { getAuth } from 'firebase/auth';
 import { useAuthUser } from './useAuthUser';
@@ -34,7 +38,11 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/choose-avatar" element={<AvatarSelectionPage />} />
         <Route path="/dashboard" element={<UserDashboard />} />
+        <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/admin" element={user && user.email === ADMIN_EMAIL ? <AdminDashboard /> : <AdminLogin />} />
+        <Route path="/dreamfund" element={<DreamFundDashboard />} />
+        <Route path="/deals" element={<DealAlertsPage />} />
+        <Route path="/settings" element={<AccountSettingsPage />} />
       </Routes>
     </Router>
   );
