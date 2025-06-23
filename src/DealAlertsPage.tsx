@@ -116,17 +116,17 @@ const DealAlertsPage: React.FC = () => {
 
   const pageStyle: React.CSSProperties = {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #fdf2f8 0%, #ec4899 100%)',
-    color: '#831843',
+    background: 'linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)',
+    color: '#1e40af',
     padding: '40px 20px'
   };
 
   const cardStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #fce7f3 0%, #f9a8d4 100%)',
+    background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
     borderRadius: 16,
     padding: 24,
-    border: '1px solid #f472b6',
-    boxShadow: '0 8px 25px rgba(236,72,153,0.15)',
+    border: '1px solid #93c5fd',
+    boxShadow: '0 8px 25px rgba(59,130,246,0.15)',
     marginBottom: 24,
     display: 'flex',
     justifyContent: 'space-between',
@@ -136,20 +136,20 @@ const DealAlertsPage: React.FC = () => {
   };
 
   const statsCardStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
     borderRadius: 12,
     padding: '20px',
     marginBottom: 30,
     textAlign: 'center',
-    boxShadow: '0 4px 15px rgba(236,72,153,0.3)'
+    boxShadow: '0 4px 15px rgba(59,130,246,0.3)'
   };
 
   if (loading) {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#831843', marginBottom: 20 }}>Loading Deals...</h1>
-          <div style={{ fontSize: '1.2rem', color: '#be185d' }}>Finding the best deals for you...</div>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#1e40af', marginBottom: 20 }}>Loading Deals...</h1>
+          <div style={{ fontSize: '1.2rem', color: '#1d4ed8' }}>Finding the best deals for you...</div>
         </div>
       </div>
     );
@@ -169,7 +169,7 @@ const DealAlertsPage: React.FC = () => {
     <div style={pageStyle}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#831843' }}>Watchlist Deals</h1>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#1e40af' }}>Watchlist Deals</h1>
         </div>
 
         {/* Stats Card */}
@@ -177,28 +177,28 @@ const DealAlertsPage: React.FC = () => {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 8, color: '#fff' }}>
             🎉 Total Potential Savings
           </h2>
-          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#fdf2f8' }}>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#eff6ff' }}>
             ${totalSavings.toLocaleString()}
           </div>
-          <p style={{ color: '#fce7f3', marginTop: 8 }}>
+          <p style={{ color: '#dbeafe', marginTop: 8 }}>
             Across {deals.length} vehicles in your watchlist
           </p>
         </div>
 
         {deals.length === 0 ? (
           <div style={{ ...cardStyle, justifyContent: 'center' }}>
-            <p style={{ fontSize: '1.2rem', color: '#831843' }}>No new deals on your watched cars right now. Check back later!</p>
+            <p style={{ fontSize: '1.2rem', color: '#1e40af' }}>No new deals on your watched cars right now. Check back later!</p>
           </div>
         ) : (
           deals.map(deal => (
             <div key={deal.id} style={cardStyle}>
               <div style={{ flex: 1 }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 8, color: '#831843' }}>{deal.name}</h2>
-                <p style={{ color: '#be185d', marginBottom: 8 }}>{deal.type}</p>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 8, color: '#1e40af' }}>{deal.name}</h2>
+                <p style={{ color: '#1d4ed8', marginBottom: 8 }}>{deal.type}</p>
                 <p style={{ color: '#dc2626', fontWeight: 600, marginBottom: 4 }}>
                   {getDealTypeIcon(deal.dealType)} {deal.dealDescription}
                 </p>
-                <p style={{ color: '#831843' }}>
+                <p style={{ color: '#1e40af' }}>
                   <span style={{ textDecoration: 'line-through', marginRight: 8 }}>${deal.originalPrice.toLocaleString()}</span>
                   <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#059669' }}>${deal.price.toLocaleString()}</span>
                   <span style={{ color: '#059669', marginLeft: 8, fontSize: '0.9rem' }}>

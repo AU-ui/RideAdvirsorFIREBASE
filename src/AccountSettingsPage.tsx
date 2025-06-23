@@ -10,8 +10,10 @@ const AccountSettingsPage: React.FC = () => {
 
   const [prefs, setPrefs] = useState({ dealAlertsEnabled: false, newsletterSubscribed: false });
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [loading, setLoading] =useState(false);
+  const [prefsMessage, setPrefsMessage] = useState({ type: '', text: '' });
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     // Fetch user preferences when component mounts
@@ -32,8 +34,8 @@ const AccountSettingsPage: React.FC = () => {
   const handleSavePrefs = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    setMessage({ type: '', text: '' });
-    setLoading(true);
+    setPrefsMessage({ type: '', text: '' });
+    setPrefsLoading(true);
     try {
         const response = await fetch(`http://localhost:8000/user/preferences/${user.uid}`, {
             method: 'PUT',
@@ -42,14 +44,15 @@ const AccountSettingsPage: React.FC = () => {
         });
         const data = await response.json();
         if (data.success) {
-            setMessage({ type: 'success', text: 'Preferences saved successfully!' });
+            setPrefsMessage({ type: 'success', text: 'Preferences saved successfully!' });
+            setTimeout(() => navigate('/dashboard'), 1200);
         } else {
-            setMessage({ type: 'error', text: data.error || 'Failed to save preferences.' });
+            setPrefsMessage({ type: 'error', text: data.error || 'Failed to save preferences.' });
         }
     } catch (err) {
-        setMessage({ type: 'error', text: 'A network error occurred.' });
+        setPrefsMessage({ type: 'error', text: 'A network error occurred.' });
     } finally {
-        setLoading(false);
+        setPrefsLoading(false);
     }
   };
 
@@ -57,11 +60,11 @@ const AccountSettingsPage: React.FC = () => {
     e.preventDefault();
     if (!user || !user.email) return;
     if (passwords.newPassword !== passwords.confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match.' });
+      setPasswordMessage({ type: 'error', text: 'New passwords do not match.' });
       return;
     }
-    setMessage({ type: '', text: '' });
-    setLoading(true);
+    setPasswordMessage({ type: '', text: '' });
+    setPasswordLoading(true);
 
     try {
       // Re-authenticate user before changing password for security
@@ -71,8 +74,9 @@ const AccountSettingsPage: React.FC = () => {
       // If re-authentication is successful, update the password
       await updatePassword(auth.currentUser!, passwords.newPassword);
       
-      setMessage({ type: 'success', text: 'Password changed successfully! Please use your new password to log in next time.' });
+      setPasswordMessage({ type: 'success', text: 'Password changed successfully! Please use your new password to log in next time.' });
       setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => navigate('/dashboard'), 1200);
     } catch (error: any) {
       let errorMessage = 'Failed to change password. Please check your current password and try again.';
       if (error.code === 'auth/wrong-password') {
@@ -80,9 +84,9 @@ const AccountSettingsPage: React.FC = () => {
       } else if(error.code === 'auth/weak-password') {
         errorMessage = 'The new password is too weak. It should be at least 6 characters long.';
       }
-      setMessage({ type: 'error', text: errorMessage });
+      setPasswordMessage({ type: 'error', text: errorMessage });
     } finally {
-        setLoading(false);
+        setPasswordLoading(false);
     }
   };
 
@@ -120,7 +124,7 @@ const AccountSettingsPage: React.FC = () => {
     fontWeight: 600,
     cursor: 'pointer',
     width: '100%',
-    opacity: loading ? 0.7 : 1,
+    opacity: passwordLoading ? 0.7 : 1,
   };
 
   return (
@@ -128,29 +132,32 @@ const AccountSettingsPage: React.FC = () => {
       <div style={{ maxWidth: 700, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
           <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>Account Settings</h1>
-           <button onClick={() => navigate('/dashboard')} style={{...buttonStyle, width: 'auto'}}>Back</button>
         </div>
-
-        {message.text && (
-            <div style={{ padding: 16, borderRadius: 8, marginBottom: 24, background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#166534' : '#991b1b' }}>
-                {message.text}
-            </div>
-        )}
 
         {/* Change Password */}
         <div style={cardStyle}>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: 24 }}>Change Password</h2>
+          {passwordMessage.text && (
+            <div style={{ padding: 16, borderRadius: 8, marginBottom: 24, background: passwordMessage.type === 'success' ? '#dcfce7' : '#fee2e2', color: passwordMessage.type === 'success' ? '#166534' : '#991b1b' }}>
+                {passwordMessage.text}
+            </div>
+          )}
           <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
              <label>Current Password<input type="password" name="currentPassword" value={passwords.currentPassword} onChange={handlePasswordChange} style={inputStyle} required /></label>
              <label>New Password<input type="password" name="newPassword" value={passwords.newPassword} onChange={handlePasswordChange} style={inputStyle} required /></label>
              <label>Confirm New Password<input type="password" name="confirmPassword" value={passwords.confirmPassword} onChange={handlePasswordChange} style={inputStyle} required /></label>
-             <button type="submit" style={buttonStyle} disabled={loading}>{loading ? 'Saving...' : 'Change Password'}</button>
+             <button type="submit" style={buttonStyle} disabled={passwordLoading}>{passwordLoading ? 'Saving...' : 'Change Password'}</button>
           </form>
         </div>
 
         {/* Notification Preferences */}
         <div style={cardStyle}>
             <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: 24 }}>Notification Preferences</h2>
+            {prefsMessage.text && (
+              <div style={{ padding: 16, borderRadius: 8, marginBottom: 24, background: prefsMessage.type === 'success' ? '#dcfce7' : '#fee2e2', color: prefsMessage.type === 'success' ? '#166534' : '#991b1b' }}>
+                  {prefsMessage.text}
+              </div>
+            )}
             <form onSubmit={handleSavePrefs} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <input type="checkbox" name="dealAlertsEnabled" checked={prefs.dealAlertsEnabled} onChange={handlePrefsChange} style={{width: 20, height: 20}} />
@@ -160,7 +167,7 @@ const AccountSettingsPage: React.FC = () => {
                     <input type="checkbox" name="newsletterSubscribed" checked={prefs.newsletterSubscribed} onChange={handlePrefsChange} style={{width: 20, height: 20}} />
                     <span>Subscribe to the monthly RideAdvisor newsletter.</span>
                 </label>
-                <button type="submit" style={buttonStyle} disabled={loading}>{loading ? 'Saving...' : 'Save Preferences'}</button>
+                <button type="submit" style={buttonStyle} disabled={prefsLoading}>{prefsLoading ? 'Saving...' : 'Save Preferences'}</button>
             </form>
         </div>
       </div>
