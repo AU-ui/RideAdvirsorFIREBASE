@@ -827,10 +827,14 @@ app.post('/dreamfund/redeem', async (req, res) => {
         date: new Date().toISOString().split('T')[0]
       };
       
-      // Update reward with earned date
+      // Update reward with earned date and mark as unavailable
       const updatedRewards = currentData.rewardsEarned.map(r => 
         r.id === rewardId 
-          ? { ...r, earnedDate: new Date().toISOString().split('T')[0] }
+          ? { 
+              ...r, 
+              earnedDate: new Date().toISOString().split('T')[0],
+              isAvailable: false 
+            }
           : r
       );
       
