@@ -1,6 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const admin = require('./firebase_config');
+const { cars, avatarConfig, recommendationReasons, dummyDeals, starterCars } = require('./carData');
+const { exportInteractionData } = require('./exportMLData');
+const CarRecommendationEngine = require('./mlRecommendationEngine');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -8,6 +12,26 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize ML recommendation engine
+const mlEngine = new CarRecommendationEngine();
+
+// Load ML model on startup if available
+async function loadMLModel() {
+  try {
+    const modelPath = path.join(__dirname, 'trained_model.json');
+    if (mlEngine.loadModel(modelPath)) {
+      console.log('✅ ML model loaded successfully on startup');
+    } else {
+      console.log('ℹ️ No trained ML model found. Model will be trained when data is available.');
+    }
+  } catch (error) {
+    console.log('⚠️ Could not load ML model on startup:', error.message);
+  }
+}
+
+// Load ML model when server starts
+loadMLModel();
 
 // Registration endpoint
 app.post('/register', async (req, res) => {
@@ -153,28 +177,54 @@ app.get('/', (req, res) => {
   res.json({ message: 'RideAdvisor API is running' });
 });
 
-// Dummy car data
-const cars = [
-  { id: 1, name: 'Toyota Prius', type: 'eco', price: 20000 },
-  { id: 2, name: 'Tesla Model S', type: 'luxury', price: 80000 },
-  { id: 3, name: 'Honda Civic', type: 'budget', price: 18000 },
-  { id: 4, name: 'BMW 5 Series', type: 'luxury', price: 55000 },
-  { id: 5, name: 'Nissan Leaf', type: 'eco', price: 25000 },
-  { id: 6, name: 'Kia Rio', type: 'budget', price: 15000 }
-];
-
-// ML-like recommendation logic
-function recommendCars(avatar) {
-  switch (avatar) {
-    case 'eco':
-      return cars.filter(car => car.type === 'eco');
-    case 'luxury':
-      return cars.filter(car => car.type === 'luxury');
-    case 'budget':
-      return cars.filter(car => car.type === 'budget');
-    default:
-      return cars;
-  }
+// Enhanced ML-like recommendation logic with simulated data
+function recommendCars(avatar, userPreferences = {}) {
+  // Base filtering by avatar type
+  let filteredCars = cars.filter(car => car.type === avatar);
+  
+  // Enhanced scoring based on multiple factors
+  const scoredCars = filteredCars.map(car => {
+    let score = 0;
+    
+    // Base score for avatar match
+    score += 1.0;
+    
+    // Price preference scoring
+    if (avatar === 'budget' && car.price < 25000) score += 0.5;
+    if (avatar === 'luxury' && car.price > 50000) score += 0.5;
+    if (avatar === 'eco' && car.mpg > 50) score += 0.3;
+    
+    // Feature-based scoring
+    if (avatar === 'eco' && car.features.includes('electric')) score += 0.4;
+    if (avatar === 'eco' && car.features.includes('hybrid')) score += 0.3;
+    if (avatar === 'luxury' && car.features.includes('premium')) score += 0.4;
+    if (avatar === 'luxury' && car.features.includes('luxury')) score += 0.4;
+    if (avatar === 'budget' && car.features.includes('affordable')) score += 0.3;
+    if (avatar === 'budget' && car.features.includes('reliable')) score += 0.3;
+    
+    // Brand preference (simulated)
+    const brandPreferences = {
+      eco: ['Toyota', 'Tesla', 'Nissan', 'Honda'],
+      luxury: ['BMW', 'Mercedes-Benz', 'Audi', 'Lexus', 'Porsche'],
+      budget: ['Honda', 'Toyota', 'Kia', 'Hyundai', 'Ford']
+    };
+    
+    if (brandPreferences[avatar].includes(car.brand)) {
+      score += 0.2;
+    }
+    
+    return { ...car, score };
+  });
+  
+  // Sort by score, then by price for same scores
+  scoredCars.sort((a, b) => {
+    if (Math.abs(a.score - b.score) < 0.1) {
+      return avatar === 'budget' ? a.price - b.price : b.price - a.price;
+    }
+    return b.score - a.score;
+  });
+  
+  return scoredCars;
 }
 
 function cosineSimilarity(a, b) {
@@ -184,50 +234,197 @@ function cosineSimilarity(a, b) {
   return normA && normB ? dot / (normA * normB) : 0;
 }
 
-// Endpoint for car recommendations (hybrid: content-based + collaborative)
+// Enhanced endpoint for car recommendations with ML integration
 app.post('/recommend-cars', async (req, res) => {
-  const { avatar, userId } = req.body;
+  const { avatar, userId, preferences } = req.body;
   if (!avatar) {
     return res.status(400).json({ success: false, error: 'Avatar selection is required.' });
   }
 
-  // Content-based: avatar profile
-  let avatarProfile = { eco: [1, 0, 0], luxury: [0, 1, 0], budget: [0, 0, 1] };
-  let carFeatureMap = {
-    eco: [1, 0, 0],
-    luxury: [0, 1, 0],
-    budget: [0, 0, 1]
-  };
-  const avatarVec = avatarProfile[avatar];
+  try {
+    // Initialize recommendations array
+    let recommendations = [];
+    let mlRecommendations = [];
+    let avatarRecommendations = [];
 
-  // Collaborative: get feedback from Firestore
-  let feedbackMap = {}; // carId -> score
-  if (userId) {
-    const feedbackSnap = await admin.firestore().collection('feedback').where('avatar', '==', avatar).get();
-    feedbackSnap.forEach(doc => {
-      const { carId, feedback } = doc.data();
-      if (!feedbackMap[carId]) feedbackMap[carId] = 0;
-      feedbackMap[carId] += feedback === 'like' ? 1 : -1;
+    // 1. Get ML-based recommendations if model is trained and user exists
+    if (userId && mlEngine.isTrained) {
+      try {
+        const mlRecs = mlEngine.getRecommendations(userId, 15);
+        mlRecommendations = mlRecs.map(rec => {
+          const car = cars.find(c => c.id.toString() === rec.carId);
+          return car ? { ...car, mlScore: rec.score, recommendationSource: 'ml' } : null;
+        }).filter(car => car !== null);
+        
+        console.log(`🤖 ML provided ${mlRecommendations.length} recommendations for user ${userId}`);
+      } catch (error) {
+        console.log('⚠️ ML recommendations failed, falling back to avatar-based:', error.message);
+      }
+    }
+
+    // 2. Get avatar-based recommendations (existing logic)
+    let avatarProfile = { 
+      eco: [1, 0, 0, 0.8, 0.9, 0.7],      // [eco, luxury, budget, fuel-efficiency, environmental, practical]
+      luxury: [0, 1, 0, 0.3, 0.2, 0.6],   // [eco, luxury, budget, fuel-efficiency, environmental, practical]
+      budget: [0, 0, 1, 0.7, 0.5, 0.9]    // [eco, luxury, budget, fuel-efficiency, environmental, practical]
+    };
+    
+    let carFeatureMap = {
+      eco: [1, 0, 0, 0.9, 0.9, 0.7],
+      luxury: [0, 1, 0, 0.4, 0.3, 0.6],
+      budget: [0, 0, 1, 0.8, 0.6, 0.9]
+    };
+    
+    const avatarVec = avatarProfile[avatar];
+
+    // Simulated collaborative feedback (since we don't have real user data)
+    let feedbackMap = {};
+    if (userId) {
+      // Try to get real feedback from Firestore if available
+      try {
+        const feedbackSnap = await admin.firestore().collection('feedback').where('avatar', '==', avatar).get();
+        feedbackSnap.forEach(doc => {
+          const { carId, feedback } = doc.data();
+          if (!feedbackMap[carId]) feedbackMap[carId] = 0;
+          feedbackMap[carId] += feedback === 'like' ? 1 : -1;
+        });
+      } catch (error) {
+        console.log('Using simulated feedback data');
+      }
+    }
+
+    // Score cars using avatar-based logic
+    const avatarScoredCars = cars.map(car => {
+      const carVec = carFeatureMap[car.type];
+      const contentScore = cosineSimilarity(avatarVec, carVec);
+      const collabScore = feedbackMap[car.id] ? feedbackMap[car.id] / 5 : 0;
+      const finalScore = 0.6 * contentScore + 0.4 * collabScore;
+      return { ...car, avatarScore: finalScore, recommendationSource: 'avatar' };
+    });
+
+    // Sort avatar recommendations
+    avatarScoredCars.sort((a, b) => b.avatarScore - a.avatarScore);
+    avatarRecommendations = avatarScoredCars.slice(0, 15);
+
+    // 3. Combine ML and Avatar recommendations
+    if (mlRecommendations.length > 0 && avatarRecommendations.length > 0) {
+      // Hybrid approach: Combine both recommendation sources
+      const combinedCars = new Map();
+      
+      // Add ML recommendations with higher weight for users with interaction history
+      mlRecommendations.forEach((car, index) => {
+        const mlWeight = 0.7; // Higher weight for ML recommendations
+        const combinedScore = car.mlScore * mlWeight;
+        combinedCars.set(car.id, {
+          ...car,
+          combinedScore: combinedScore,
+          mlRank: index + 1,
+          avatarRank: null
+        });
+      });
+      
+      // Add avatar recommendations
+      avatarRecommendations.forEach((car, index) => {
+        const avatarWeight = 0.3; // Lower weight for avatar recommendations
+        const existingCar = combinedCars.get(car.id);
+        
+        if (existingCar) {
+          // Car exists in both, combine scores
+          existingCar.combinedScore += car.avatarScore * avatarWeight;
+          existingCar.avatarRank = index + 1;
+        } else {
+          // Car only in avatar recommendations
+          combinedCars.set(car.id, {
+            ...car,
+            combinedScore: car.avatarScore * avatarWeight,
+            mlRank: null,
+            avatarRank: index + 1
+          });
+        }
+      });
+      
+      // Sort by combined score
+      recommendations = Array.from(combinedCars.values())
+        .sort((a, b) => b.combinedScore - a.combinedScore)
+        .slice(0, 10);
+        
+      console.log(`🎯 Hybrid recommendations: ${recommendations.length} cars (ML: ${mlRecommendations.length}, Avatar: ${avatarRecommendations.length})`);
+      
+    } else if (mlRecommendations.length > 0) {
+      // Only ML recommendations available
+      recommendations = mlRecommendations.slice(0, 10);
+      console.log(`🤖 Using ML-only recommendations: ${recommendations.length} cars`);
+      
+    } else {
+      // Fallback to avatar-based recommendations
+      recommendations = avatarRecommendations.slice(0, 10);
+      console.log(`👤 Using avatar-only recommendations: ${recommendations.length} cars`);
+    }
+
+    // 4. Add recommendation reasons and metadata
+    const finalRecommendations = recommendations.map((car, index) => {
+      const reason = getRecommendationReason(car, avatar);
+      return {
+        ...car,
+        rank: index + 1,
+        reason: reason,
+        recommendationMethod: car.recommendationSource || 'avatar',
+        confidence: car.mlScore ? Math.min(car.mlScore / 5, 1) : car.avatarScore || 0.5
+      };
+    });
+
+    res.json({ 
+      success: true, 
+      recommendations: finalRecommendations,
+      metadata: {
+        totalCars: finalRecommendations.length,
+        mlRecommendations: mlRecommendations.length,
+        avatarRecommendations: avatarRecommendations.length,
+        hybridMode: mlRecommendations.length > 0 && avatarRecommendations.length > 0,
+        modelTrained: mlEngine.isTrained
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate recommendations',
+      fallback: true
     });
   }
-
-  // Score cars
-  const hybridScores = cars.map(car => {
-    // Content-based score (cosine similarity)
-    const carVec = carFeatureMap[car.type];
-    const contentScore = cosineSimilarity(avatarVec, carVec);
-    // Collaborative score (normalized)
-    const collabScore = feedbackMap[car.id] ? feedbackMap[car.id] / 5 : 0; // scale for demo
-    // Hybrid score: weighted sum
-    const finalScore = 0.6 * contentScore + 0.4 * collabScore;
-    return { ...car, score: finalScore };
-  });
-
-  // Sort by score, descending
-  hybridScores.sort((a, b) => b.score - a.score);
-
-  res.json({ success: true, recommendations: hybridScores });
 });
+
+// Helper function to explain recommendations
+function getRecommendationReason(car, avatar) {
+  const reasons = {
+    eco: {
+      electric: "Perfect for eco-conscious drivers with zero emissions",
+      hybrid: "Great fuel efficiency with hybrid technology",
+      highMpg: "Excellent fuel economy for environmental impact"
+    },
+    luxury: {
+      premium: "Premium features and sophisticated design",
+      highPrice: "Luxury positioning with premium pricing",
+      brand: "Prestigious brand with excellent reputation"
+    },
+    budget: {
+      affordable: "Great value for budget-conscious buyers",
+      reliable: "Proven reliability for long-term ownership",
+      efficient: "Good fuel efficiency for cost savings"
+    }
+  };
+  
+  if (car.features.includes('electric') && avatar === 'eco') return reasons.eco.electric;
+  if (car.features.includes('hybrid') && avatar === 'eco') return reasons.eco.hybrid;
+  if (car.mpg > 50 && avatar === 'eco') return reasons.eco.highMpg;
+  if (car.features.includes('premium') && avatar === 'luxury') return reasons.luxury.premium;
+  if (car.price > 50000 && avatar === 'luxury') return reasons.luxury.highPrice;
+  if (car.features.includes('affordable') && avatar === 'budget') return reasons.budget.affordable;
+  if (car.features.includes('reliable') && avatar === 'budget') return reasons.budget.reliable;
+  
+  return `Recommended based on ${avatar} preferences and user feedback`;
+}
 
 // List all users (paginated)
 app.get('/admin/users', async (req, res) => {
@@ -267,6 +464,47 @@ app.post('/feedback', async (req, res) => {
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Log user-car interactions for ML training
+app.post('/interaction', async (req, res) => {
+  /*
+    Expected body: {
+      userId: string,
+      carId: string|number,
+      type: 'like' | 'dislike' | 'view' | 'watchlist' | 'skip' | ...,
+      details?: object // optional, for extra info (e.g., timestamp, source page)
+    }
+  */
+  try {
+    const { userId, carId, type, details } = req.body;
+    if (!userId || !carId || !type) {
+      return res.status(400).json({ success: false, error: 'userId, carId, and type are required' });
+    }
+    await admin.firestore().collection('interactions').add({
+      userId,
+      carId,
+      type,
+      details: details || {},
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ success: true });
+
+    // Retrain ML model in the background (non-blocking)
+    (async () => {
+      try {
+        const csvPath = path.join(__dirname, 'ml_data', 'user_car_interactions.csv');
+        await exportInteractionData(); // This will also retrain and save the model
+        // Optionally, you can log or notify here
+        console.log('✅ ML model retrained after new interaction');
+      } catch (err) {
+        console.error('❌ Error retraining ML model after interaction:', err.message);
+      }
+    })();
+
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -704,7 +942,260 @@ app.post('/user/change-password', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 8000;
+// Export interactions data for ML training
+app.get('/export-interactions', async (req, res) => {
+  try {
+    const { format = 'json', limit = 1000 } = req.query;
+    
+    // Get all interactions from Firestore
+    const interactionsSnap = await admin.firestore()
+      .collection('interactions')
+      .orderBy('timestamp', 'desc')
+      .limit(parseInt(limit))
+      .get();
+    
+    const interactions = interactionsSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate?.() || doc.data().timestamp
+    }));
+    
+    if (format === 'csv') {
+      // Convert to CSV format
+      const csvHeaders = ['userId', 'carId', 'type', 'timestamp', 'details'];
+      const csvRows = interactions.map(interaction => [
+        interaction.userId,
+        interaction.carId,
+        interaction.type,
+        interaction.timestamp,
+        JSON.stringify(interaction.details || {})
+      ]);
+      
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="interactions.csv"');
+      res.send(csvContent);
+    } else {
+      // Return as JSON
+      res.json({
+        success: true,
+        count: interactions.length,
+        interactions: interactions
+      });
+    }
+  } catch (error) {
+    console.error('Error exporting interactions:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Export user feedback data for ML training
+app.get('/export-feedback', async (req, res) => {
+  try {
+    const { format = 'json', limit = 1000 } = req.query;
+    
+    // Get all feedback from Firestore
+    const feedbackSnap = await admin.firestore()
+      .collection('feedback')
+      .orderBy('timestamp', 'desc')
+      .limit(parseInt(limit))
+      .get();
+    
+    const feedback = feedbackSnap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate?.() || doc.data().timestamp
+    }));
+    
+    if (format === 'csv') {
+      // Convert to CSV format
+      const csvHeaders = ['userId', 'carId', 'avatar', 'feedback', 'timestamp'];
+      const csvRows = feedback.map(item => [
+        item.userId,
+        item.carId,
+        item.avatar,
+        item.feedback,
+        item.timestamp
+      ]);
+      
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="feedback.csv"');
+      res.send(csvContent);
+    } else {
+      // Return as JSON
+      res.json({
+        success: true,
+        count: feedback.length,
+        feedback: feedback
+      });
+    }
+  } catch (error) {
+    console.error('Error exporting feedback:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Export ML training data and retrain ML model automatically
+app.get('/export-ml-data', async (req, res) => {
+  try {
+    console.log('🔄 Starting ML data export via API...');
+    const result = await exportInteractionData();
+
+    // Automatically retrain ML model after export
+    const csvPath = path.join(__dirname, 'ml_data', 'user_car_interactions.csv');
+    const dataLoaded = mlEngine.loadData(csvPath);
+    let trainingSuccess = false;
+    let stats = null;
+    if (dataLoaded) {
+      trainingSuccess = mlEngine.train();
+      if (trainingSuccess) {
+        mlEngine.saveModel();
+        stats = mlEngine.getStats();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'ML data exported and model retrained successfully',
+      export: result,
+      modelTrained: trainingSuccess,
+      stats: stats
+    });
+  } catch (error) {
+    console.error('❌ Error exporting ML data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export and retrain ML data',
+      details: error.message
+    });
+  }
+});
+
+// Train ML recommendation model
+app.post('/ml/train', async (req, res) => {
+  try {
+    console.log('🔄 Starting ML model training...');
+    
+    // First export the latest data
+    await exportInteractionData();
+    
+    // Load data into ML engine
+    const csvPath = path.join(__dirname, 'ml_data', 'user_car_interactions.csv');
+    const dataLoaded = mlEngine.loadData(csvPath);
+    
+    if (!dataLoaded) {
+      return res.json({
+        success: false,
+        message: 'No interaction data available for training. Users need to interact with cars first.'
+      });
+    }
+    
+    // Train the model
+    const trainingSuccess = mlEngine.train();
+    
+    if (!trainingSuccess) {
+      return res.json({
+        success: false,
+        message: 'Insufficient data for training. Need at least 2 users and 2 cars with interactions.'
+      });
+    }
+    
+    // Save the trained model
+    mlEngine.saveModel();
+    
+    // Get model statistics
+    const stats = mlEngine.getStats();
+    
+    res.json({
+      success: true,
+      message: 'ML model trained successfully',
+      stats: stats
+    });
+    
+  } catch (error) {
+    console.error('❌ Error training ML model:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to train ML model',
+      details: error.message
+    });
+  }
+});
+
+// Get ML-based recommendations
+app.post('/ml/recommendations', async (req, res) => {
+  try {
+    const { userId, nRecommendations = 10 } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'userId is required'
+      });
+    }
+    
+    // Check if model is trained
+    if (!mlEngine.isTrained) {
+      return res.json({
+        success: false,
+        message: 'ML model not trained yet. Please train the model first.',
+        recommendations: []
+      });
+    }
+    
+    // Get recommendations
+    const recommendations = mlEngine.getRecommendations(userId, nRecommendations);
+    
+    // Get car details for recommendations
+    const carDetails = recommendations.map(rec => {
+      const car = cars.find(c => c.id.toString() === rec.carId);
+      return {
+        ...rec,
+        car: car || { id: rec.carId, name: 'Unknown Car' }
+      };
+    });
+    
+    res.json({
+      success: true,
+      recommendations: carDetails,
+      totalFound: recommendations.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting ML recommendations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get ML recommendations',
+      details: error.message
+    });
+  }
+});
+
+// Get ML model status
+app.get('/ml/status', (req, res) => {
+  try {
+    const stats = mlEngine.getStats();
+    res.json({
+      success: true,
+      isTrained: mlEngine.isTrained,
+      stats: stats
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get ML model status'
+    });
+  }
+});
+
+const PORT = process.env.PORT || 8001;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 }); 

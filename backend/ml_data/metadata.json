@@ -1,0 +1,22 @@
+{
+  "exportDate": "2025-06-24T19:22:49.987Z",
+  "totalUsers": 6,
+  "totalCars": 75,
+  "totalInteractions": 100,
+  "interactionTypes": [
+    "watchlist_add",
+    "like",
+    "view",
+    "dislike",
+    "watchlist_remove"
+  ],
+  "ratingScale": {
+    "like": 5,
+    "dislike": 1,
+    "watchlist_add": 4,
+    "watchlist_remove": 2,
+    "deal_view": 3,
+    "view": 2
+  },
+  "dataFormat": "CSV with columns: userId, carId, rating, interaction_count, last_interaction"
+}
