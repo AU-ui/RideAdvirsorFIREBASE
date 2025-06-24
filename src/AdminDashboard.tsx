@@ -22,7 +22,7 @@ const AdminDashboard: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:8000/admin/users');
+      const response = await fetch('http://localhost:8001/admin/users');
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setUsers(data.users);
@@ -48,7 +48,7 @@ const AdminDashboard: React.FC = () => {
 
   const handleDelete = async (userId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/admin/users/${userId}`, {
+      const response = await fetch(`http://localhost:8001/admin/users/${userId}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete user');
@@ -60,7 +60,7 @@ const AdminDashboard: React.FC = () => {
 
   const handleBlock = async (userId: string, isBlocked: boolean) => {
     try {
-      const response = await fetch(`http://localhost:8000/admin/users/${userId}/block`, {
+      const response = await fetch(`http://localhost:8001/admin/users/${userId}/block`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isBlocked }),
@@ -81,7 +81,7 @@ const AdminDashboard: React.FC = () => {
   const handleSaveEdit = async () => {
     if (!editingUser) return;
     try {
-      const response = await fetch(`http://localhost:8000/admin/users/${editingUser.id}`, {
+      const response = await fetch(`http://localhost:8001/admin/users/${editingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ displayName: editName, email: editEmail }),

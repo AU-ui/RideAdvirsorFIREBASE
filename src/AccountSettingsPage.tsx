@@ -37,7 +37,7 @@ const AccountSettingsPage: React.FC = () => {
     setPrefsMessage({ type: '', text: '' });
     setPrefsLoading(true);
     try {
-        const response = await fetch(`http://localhost:8000/user/preferences/${user.uid}`, {
+        const response = await fetch(`http://localhost:8001/user/preferences/${user.uid}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(prefs)

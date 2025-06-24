@@ -99,7 +99,7 @@ const DealAlertsPage: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`http://localhost:8000/deals/${user.uid}`);
+      const response = await fetch(`http://localhost:8001/deals/${user.uid}`);
       const data = await response.json();
       if (data.success) {
         setDeals(data.deals);
@@ -112,6 +112,35 @@ const DealAlertsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleViewDealDetails = async (deal: any) => {
+    // Log interaction for ML training
+    if (user) {
+      try {
+        await fetch('http://localhost:8001/interaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            carId: deal.id,
+            type: 'deal_view',
+            details: {
+              source: 'deal_alerts_page',
+              dealType: deal.dealType,
+              savings: deal.savings,
+              originalPrice: deal.originalPrice,
+              finalPrice: deal.price
+            }
+          })
+        });
+      } catch (error) {
+        console.error('Failed to log deal interaction:', error);
+      }
+    }
+    
+    // TODO: Navigate to deal details page or open modal
+    alert(`Viewing details for ${deal.name} - ${deal.dealDescription}`);
   };
 
   const pageStyle: React.CSSProperties = {
@@ -216,7 +245,7 @@ const DealAlertsPage: React.FC = () => {
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-              }}>
+              }} onClick={() => handleViewDealDetails(deal)}>
                 View Details
               </button>
             </div>

@@ -82,7 +82,7 @@ const WatchlistPage: React.FC = () => {
   // Fetch all cars (for search)
   useEffect(() => {
     setLoading(true);
-    fetch('http://localhost:8000/cars')
+    fetch('http://localhost:8001/cars')
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.cars)) {
@@ -97,7 +97,7 @@ const WatchlistPage: React.FC = () => {
   useEffect(() => {
     if (user) {
       setLoading(true);
-      fetch(`http://localhost:8000/user/watchlist/${user.uid}`)
+      fetch(`http://localhost:8001/user/watchlist/${user.uid}`)
         .then(res => res.json())
         .then(data => {
           if (data.success && Array.isArray(data.watchlist)) {
@@ -114,7 +114,7 @@ const WatchlistPage: React.FC = () => {
     if (!user) return;
     setActionMsg('');
     try {
-      const res = await fetch(`http://localhost:8000/user/watchlist/${user.uid}`, {
+      const res = await fetch(`http://localhost:8001/user/watchlist/${user.uid}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carId: car.id })
@@ -123,6 +123,22 @@ const WatchlistPage: React.FC = () => {
       if (data.success) {
         setWatchlist(prev => [...prev, car]);
         setActionMsg('Added to watchlist!');
+        
+        // Log interaction for ML training
+        await fetch('http://localhost:8001/interaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            carId: car.id,
+            type: 'watchlist_add',
+            details: {
+              source: 'watchlist_page',
+              carType: car.type,
+              carPrice: car.price
+            }
+          })
+        });
       } else {
         setActionMsg('Failed to add to watchlist.');
       }
@@ -136,13 +152,27 @@ const WatchlistPage: React.FC = () => {
     if (!user) return;
     setActionMsg('');
     try {
-      const res = await fetch(`http://localhost:8000/user/watchlist/${user.uid}/${carId}`, {
+      const res = await fetch(`http://localhost:8001/user/watchlist/${user.uid}/${carId}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
         setWatchlist(prev => prev.filter(car => car.id !== carId));
         setActionMsg('Removed from watchlist!');
+        
+        // Log interaction for ML training
+        await fetch('http://localhost:8001/interaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            carId: carId,
+            type: 'watchlist_remove',
+            details: {
+              source: 'watchlist_page'
+            }
+          })
+        });
       } else {
         setActionMsg('Failed to remove from watchlist.');
       }

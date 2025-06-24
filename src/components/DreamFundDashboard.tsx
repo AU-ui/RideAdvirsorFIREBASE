@@ -57,7 +57,7 @@ const DreamFundDashboard: React.FC = () => {
     setError('');
     
     try {
-      const response = await fetch(`http://localhost:8000/dreamfund/${user.uid}`, {
+      const response = await fetch(`http://localhost:8001/dreamfund/${user.uid}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +100,7 @@ const DreamFundDashboard: React.FC = () => {
 
     setRedeeming(true);
     try {
-      const response = await fetch(`http://localhost:8000/dreamfund/redeem`, {
+      const response = await fetch(`http://localhost:8001/dreamfund/redeem`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

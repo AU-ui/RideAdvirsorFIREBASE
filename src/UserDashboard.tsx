@@ -65,7 +65,6 @@ const UserDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [userName, setUserName] = useState<string>('User');
   const selectedAvatar = (location.state && location.state.selectedAvatar) as AvatarKey | undefined;
-  const recommendations = (location.state && location.state.recommendations) as Car[] | undefined;
   const user = useAuthUser();
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -75,6 +74,8 @@ const UserDashboard: React.FC = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [editSuccess, setEditSuccess] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState('');
+  const [recommendationMetadata, setRecommendationMetadata] = useState<any>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
 
   const starterCars: Car[] = [
     { id: 9001, name: 'Toyota RAV4', type: 'SUV', price: 28475 },
@@ -99,7 +100,7 @@ const UserDashboard: React.FC = () => {
   useEffect(() => {
     if (showEditProfile && user) {
       setProfileLoading(true);
-      fetch(`http://localhost:8000/user/profile/${user.uid}`)
+      fetch(`http://localhost:8001/user/profile/${user.uid}`)
         .then(res => res.json())
         .then(data => {
           if (data.success) {
@@ -133,7 +134,7 @@ const UserDashboard: React.FC = () => {
     setEditSuccess('');
     setProfileError('');
     try {
-      const res = await fetch(`http://localhost:8000/user/profile/${user.uid}`, {
+      const res = await fetch(`http://localhost:8001/user/profile/${user.uid}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ displayName: editForm.name, email: editForm.email, phoneNumber: editForm.phoneNumber })
@@ -162,7 +163,8 @@ const UserDashboard: React.FC = () => {
     if (!user) return;
     setFeedbackMsg('');
     try {
-      const res = await fetch('http://localhost:8000/feedback', {
+      // Call the existing feedback endpoint
+      const res = await fetch('http://localhost:8001/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,6 +184,39 @@ const UserDashboard: React.FC = () => {
       setFeedbackMsg('Failed to submit feedback.');
     }
   };
+
+  // Fetch ML-enhanced recommendations
+  const fetchRecommendations = async () => {
+    if (!selectedAvatar || !user) return;
+    
+    try {
+      const response = await fetch('http://localhost:8001/recommend-cars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          avatar: selectedAvatar,
+          userId: user.uid
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setRecommendations(data.recommendations);
+        setRecommendationMetadata(data.metadata);
+      } else {
+        console.error('Failed to fetch recommendations:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+    }
+  };
+
+  // Fetch recommendations and ML status on component mount
+  useEffect(() => {
+    if (selectedAvatar && user) {
+      fetchRecommendations();
+    }
+  }, [selectedAvatar, user]);
 
   if (!selectedAvatar || !avatarDetails[selectedAvatar]) {
     return (
@@ -277,7 +312,7 @@ const UserDashboard: React.FC = () => {
       }}>
         {/* Left Side: Recommendations */}
         <div style={{ background: 'rgba(30, 41, 59, 0.5)', borderRadius: '1rem', padding: '2rem' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
             {avatar.icon} Recommendations from your {avatar.name}
           </h2>
           {recommendations && recommendations.length > 0 ? (
@@ -288,9 +323,20 @@ const UserDashboard: React.FC = () => {
                   borderRadius: '0.75rem',
                   background: 'rgba(15, 23, 42, 0.5)',
                   border: '1px solid #334155',
+                  position: 'relative'
                 }}>
                   <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#e2e8f0' }}>{car.name}</h3>
-                  <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>{car.type} - ${car.price.toLocaleString()}</p>
+                  <p style={{ color: '#94a3b8', marginBottom: '0.5rem' }}>{car.type} - ${car.price.toLocaleString()}</p>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <p style={{ color: '#cbd5e1', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                      {car.reason}
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: '#64748b' }}>
+                      <span>Rank: #{car.rank}</span>
+                      <span>Confidence: {Math.round(car.confidence * 100)}%</span>
+                      {car.mlScore && <span>ML Score: {car.mlScore.toFixed(2)}</span>}
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => submitFeedback(car.id, 'like')} style={{ flex: 1, background: '#166534', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><ThumbsUp size={14} /> Like</button>
                     <button onClick={() => submitFeedback(car.id, 'dislike')} style={{ flex: 1, background: '#991b1b', color: '#fff', border: 'none', borderRadius: '0.5rem', padding: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><ThumbsDown size={14} /> Dislike</button>
