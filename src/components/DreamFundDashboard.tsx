@@ -41,7 +41,8 @@ const DreamFundDashboard: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [redeeming, setRedeeming] = useState(false);
+  const [redeemingRewardId, setRedeemingRewardId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   // Fetch DreamFund data from backend
   useEffect(() => {
@@ -94,11 +95,12 @@ const DreamFundDashboard: React.FC = () => {
 
   const handleRedeemReward = async (reward: Reward) => {
     if (!user || dreamFundData.currentPoints < reward.pointsCost) {
-      alert('Insufficient points to redeem this reward');
+      setNotification({ type: 'error', message: 'Insufficient points to redeem this reward' });
+      setTimeout(() => setNotification(null), 3000);
       return;
     }
 
-    setRedeeming(true);
+    setRedeemingRewardId(reward.id);
     try {
       const response = await fetch(`http://localhost:8001/dreamfund/redeem`, {
         method: 'POST',
@@ -115,17 +117,43 @@ const DreamFundDashboard: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        // Refresh the data after successful redemption
-        await fetchDreamFundData();
-        alert(`Successfully redeemed ${reward.name}!`);
+        // Update local state instead of reloading
+        const updatedRewards = dreamFundData.rewardsEarned.map(r => 
+          r.id === reward.id 
+            ? { ...r, isAvailable: false, earnedDate: new Date().toISOString().split('T')[0] }
+            : r
+        );
+        
+        const newCurrentPoints = dreamFundData.currentPoints - reward.pointsCost;
+        
+        // Add transaction record
+        const transactionRecord = {
+          id: Date.now().toString(),
+          type: 'spent' as const,
+          points: -reward.pointsCost,
+          description: `Redeemed: ${reward.name}`,
+          date: new Date().toISOString().split('T')[0]
+        };
+        
+        setDreamFundData(prev => ({
+          ...prev,
+          currentPoints: newCurrentPoints,
+          rewardsEarned: updatedRewards,
+          recentTransactions: [transactionRecord, ...prev.recentTransactions]
+        }));
+        
+        setNotification({ type: 'success', message: `Successfully redeemed ${reward.name}!` });
+        setTimeout(() => setNotification(null), 3000);
       } else {
-        alert(data.error || 'Failed to redeem reward');
+        setNotification({ type: 'error', message: data.error || 'Failed to redeem reward' });
+        setTimeout(() => setNotification(null), 3000);
       }
     } catch (err) {
-      alert('Network error. Please try again.');
+      setNotification({ type: 'error', message: 'Network error. Please try again.' });
+      setTimeout(() => setNotification(null), 3000);
       console.error('Error redeeming reward:', err);
     } finally {
-      setRedeeming(false);
+      setRedeemingRewardId(null);
     }
   };
 
@@ -184,7 +212,49 @@ const DreamFundDashboard: React.FC = () => {
       color: '#1e293b', 
       padding: '40px 20px' 
     }}>
+      <style>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        {/* Notification */}
+        {notification && (
+          <div style={{
+            position: 'fixed',
+            top: 20,
+            right: 20,
+            zIndex: 1000,
+            padding: '16px 24px',
+            borderRadius: 12,
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: '1rem',
+            background: notification.type === 'success' 
+              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+              : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            backdropFilter: 'blur(10px)',
+            animation: 'slideInRight 0.3s ease-out',
+            maxWidth: 400
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: '1.2rem' }}>
+                {notification.type === 'success' ? '✅' : '❌'}
+              </span>
+              <span>{notification.message}</span>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div style={{ 
           display: 'flex', 
@@ -317,13 +387,15 @@ const DreamFundDashboard: React.FC = () => {
           <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: 24, color: '#1e293b' }}>
             Available Rewards
           </h2>
-          {dreamFundData.rewardsEarned.length === 0 ? (
+          {dreamFundData.rewardsEarned.filter(reward => reward.isAvailable !== false).length === 0 ? (
             <p style={{ color: '#64748b', textAlign: 'center', fontSize: '1.1rem' }}>
               No rewards available yet. Keep earning points to unlock rewards!
             </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
-              {dreamFundData.rewardsEarned.map(reward => (
+              {dreamFundData.rewardsEarned
+                .filter(reward => reward.isAvailable !== false) // Only show available rewards
+                .map(reward => (
                 <div key={reward.id} style={{ 
                   background: '#f8fafc', 
                   borderRadius: 12, 
@@ -354,19 +426,19 @@ const DreamFundDashboard: React.FC = () => {
                     </span>
                     <button
                       onClick={() => handleRedeemReward(reward)}
-                      disabled={redeeming || dreamFundData.currentPoints < reward.pointsCost}
+                      disabled={redeemingRewardId === reward.id || dreamFundData.currentPoints < reward.pointsCost || reward.isAvailable === false}
                       style={{
-                        background: dreamFundData.currentPoints >= reward.pointsCost ? '#2563eb' : '#9ca3af',
+                        background: (dreamFundData.currentPoints >= reward.pointsCost && reward.isAvailable !== false && redeemingRewardId !== reward.id) ? '#2563eb' : '#9ca3af',
                         color: '#fff',
                         border: 'none',
                         borderRadius: 8,
                         padding: '10px 20px',
                         fontWeight: 600,
-                        cursor: dreamFundData.currentPoints >= reward.pointsCost ? 'pointer' : 'not-allowed',
-                        opacity: redeeming ? 0.7 : 1
+                        cursor: (dreamFundData.currentPoints >= reward.pointsCost && reward.isAvailable !== false && redeemingRewardId !== reward.id) ? 'pointer' : 'not-allowed',
+                        opacity: redeemingRewardId === reward.id ? 0.7 : 1
                       }}
                     >
-                      {redeeming ? 'Redeeming...' : 'Redeem'}
+                      {redeemingRewardId === reward.id ? 'Redeeming...' : (reward.isAvailable === false ? 'Redeemed' : 'Redeem')}
                     </button>
                   </div>
                   {reward.earnedDate && (
@@ -384,6 +456,79 @@ const DreamFundDashboard: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Redeemed Rewards */}
+        {dreamFundData.rewardsEarned.filter(reward => reward.isAvailable === false).length > 0 && (
+          <div style={{ 
+            background: '#fff', 
+            borderRadius: 16, 
+            padding: 32, 
+            marginBottom: 32,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+          }}>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: 24, color: '#1e293b' }}>
+              Redeemed Rewards
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+              {dreamFundData.rewardsEarned
+                .filter(reward => reward.isAvailable === false) // Only show redeemed rewards
+                .map(reward => (
+                <div key={reward.id} style={{ 
+                  background: '#f1f5f9', 
+                  borderRadius: 12, 
+                  padding: 24,
+                  border: '1px solid #cbd5e1',
+                  position: 'relative',
+                  opacity: 0.8
+                }}>
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 8, color: '#475569' }}>
+                    {reward.name}
+                  </h3>
+                  <p style={{ color: '#64748b', marginBottom: 16 }}>
+                    {reward.description}
+                  </p>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center' 
+                  }}>
+                    <span style={{ 
+                      background: '#e2e8f0', 
+                      color: '#64748b', 
+                      padding: '6px 12px', 
+                      borderRadius: 6,
+                      fontWeight: 600,
+                      fontSize: '0.9rem'
+                    }}>
+                      {reward.pointsCost} points
+                    </span>
+                    <span style={{ 
+                      background: '#10b981', 
+                      color: '#fff', 
+                      padding: '6px 12px', 
+                      borderRadius: 6,
+                      fontWeight: 600,
+                      fontSize: '0.9rem'
+                    }}>
+                      Redeemed
+                    </span>
+                  </div>
+                  {reward.earnedDate && (
+                    <p style={{ 
+                      fontSize: '0.9rem', 
+                      color: '#64748b', 
+                      marginTop: 12,
+                      fontStyle: 'italic'
+                    }}>
+                      Redeemed: {new Date(reward.earnedDate).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Recent Transactions */}
         <div style={{ 
