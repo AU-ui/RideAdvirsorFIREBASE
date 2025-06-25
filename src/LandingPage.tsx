@@ -11,10 +11,10 @@ const LandingPage: React.FC = () => {
       <nav className="landing-navbar">
         <div className="navbar-logo">
           <div className="logo-icon">
-            <img className="logo-img" src="/logo.svg" alt="RideAdvisor Logo" />
-            <span className="logo-ai">AI</span>
-          </div>
+          <img className="hero-logo-img" src="/logo1.jpeg" alt="RideAdvisor Logo" />
           <span className="logo-text">RideAdvisor</span>
+          </div>
+         
         </div>
         <div className="navbar-links">
           <a href="#features">Features</a>
@@ -26,10 +26,7 @@ const LandingPage: React.FC = () => {
       <div className="landing-container">
         <div className="hero">
           <div className="hero-logo">
-            <div className="hero-logo-icon">
-              <img className="hero-logo-img" src="/logo.svg" alt="RideAdvisor Logo" />
-              <span className="hero-logo-ai">AI</span>
-            </div>
+           
             <h1 className="title">Welcome to RideAdvisor AI</h1>
           </div>
           <p className="subtitle">Your Intelligent Ride Companion</p>
