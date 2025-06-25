@@ -181,6 +181,42 @@
   font-weight: 700;
   color: #2563eb;
   letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  padding: 8px 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.logo-car {
+  font-size: 1.4rem;
+  margin-right: 4px;
+}
+
+.logo-ai {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.logo-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .navbar-logo-icon {
@@ -284,5 +320,85 @@
     flex-direction: column;
     align-items: center;
     gap: 16px;
+  }
+  
+  /* Mobile logo styles */
+  .navbar-logo {
+    font-size: 1.2rem;
+    gap: 8px;
+  }
+  
+  .logo-icon {
+    padding: 6px 8px;
+    border-radius: 8px;
+  }
+  
+  .logo-car {
+    font-size: 1.1rem;
+  }
+  
+  .logo-ai {
+    font-size: 0.7rem;
+    padding: 1px 4px;
+  }
+  
+  .logo-text {
+    font-size: 1.1rem;
+  }
+  
+  .hero-logo-icon {
+    padding: 12px 16px;
+    border-radius: 16px;
+  }
+  
+  .hero-logo-car {
+    font-size: 2rem;
+  }
+  
+  .hero-logo-ai {
+    font-size: 1rem;
+    padding: 3px 6px;
+  }
+}
+
+.hero-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.hero-logo-icon {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  padding: 16px 20px;
+  border-radius: 20px;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+  margin-bottom: 16px;
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+.hero-logo-car {
+  font-size: 2.5rem;
+  margin-right: 8px;
+}
+
+.hero-logo-ai {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 8px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+}
+
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
   }
 } 

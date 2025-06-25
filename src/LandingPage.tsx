@@ -10,8 +10,11 @@ const LandingPage: React.FC = () => {
       {/* Navbar at the very top */}
       <nav className="landing-navbar">
         <div className="navbar-logo">
-          {/* <img className="navbar-logo-icon" src="/logo.svg " alt="RideAdvisor Logo" /> */}
-          RideAdvisor AI
+          <div className="logo-icon">
+            <span className="logo-car">🚗</span>
+            <span className="logo-ai">AI</span>
+          </div>
+          <span className="logo-text">RideAdvisor</span>
         </div>
         <div className="navbar-links">
           <a href="#features">Features</a>
@@ -22,7 +25,13 @@ const LandingPage: React.FC = () => {
       </nav>
       <div className="landing-container">
         <div className="hero">
-          <h1 className="title">Welcome to RideAdvisor AI</h1>
+          <div className="hero-logo">
+            <div className="hero-logo-icon">
+              <span className="hero-logo-car">🚗</span>
+              <span className="hero-logo-ai">AI</span>
+            </div>
+            <h1 className="title">Welcome to RideAdvisor AI</h1>
+          </div>
           <p className="subtitle">Your Intelligent Ride Companion</p>
           <button className="cta-button" onClick={() => navigate('/signup')}>
             Get Started
