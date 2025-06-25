@@ -12,7 +12,7 @@ const LandingPage: React.FC = () => {
         <div className="navbar-logo">
           <div className="logo-icon">
           <img className="hero-logo-img" src="/logo1.jpeg" alt="RideAdvisor Logo" />
-          <span className="logo-text">RideAdvisor</span>
+        
           </div>
          
         </div>
