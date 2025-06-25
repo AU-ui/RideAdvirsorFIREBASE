@@ -195,9 +195,11 @@
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
-.logo-car {
-  font-size: 1.4rem;
+.logo-img {
+  width: 20px;
+  height: 20px;
   margin-right: 4px;
+  object-fit: contain;
 }
 
 .logo-ai {
@@ -333,8 +335,9 @@
     border-radius: 8px;
   }
   
-  .logo-car {
-    font-size: 1.1rem;
+  .logo-img {
+    width: 20px;
+    height: 20px;
   }
   
   .logo-ai {
@@ -379,9 +382,11 @@
   animation: logoFloat 3s ease-in-out infinite;
 }
 
-.hero-logo-car {
-  font-size: 2.5rem;
+.hero-logo-img {
+  width: 32px;
+  height: 32px;
   margin-right: 8px;
+  object-fit: contain;
 }
 
 .hero-logo-ai {
