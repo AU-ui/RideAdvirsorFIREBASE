@@ -11,10 +11,8 @@ const LandingPage: React.FC = () => {
       <nav className="landing-navbar">
         <div className="navbar-logo">
           <div className="logo-icon">
-          <img className="hero-logo-img" src="/logo1.jpeg" alt="RideAdvisor Logo" />
-        
+            <img className="hero-logo-img" src="/logo1.jpeg" alt="RideAdvisor Logo" />
           </div>
-         
         </div>
         <div className="navbar-links">
           <a href="#features">Features</a>
@@ -56,6 +54,16 @@ const LandingPage: React.FC = () => {
             <h3>User & Admin Dashboards</h3>
             <p>Enjoy a modern dashboard experience, whether you're a user or an admin managing the platform.</p>
           </div>
+        </div>
+        {/* Contact Section */}
+        <div className="contact-section" id="contact">
+          <h2 className="section-title">Contact Us</h2>
+          <p className="contact-description">
+            Have questions or need support? Reach out to our team!
+          </p>
+          <a href="mailto:contact@rideadvisor.com" className="contact-email">
+            contact@rideadvisor.com
+          </a>
         </div>
         <footer className="landing-footer">
           <div className="footer-content footer-content-vertical footer-content-2row">
